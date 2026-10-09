@@ -119,10 +119,85 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Fast streaming voice consultation endpoint for zero-delay speech responses
+app.post('/api/voice-consult-stream', async (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  try {
+    const { transcript, phase, history } = req.body;
+    const ai = getGenAI();
+
+    if (!ai) {
+      res.write(`data: ${JSON.stringify({ chunk: "Hi, I'm IXX, your S.19 skin consultant! What's bothering you about your skin today?", done: true })}\n\n`);
+      return res.end();
+    }
+
+    const chatContents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
+
+    if (Array.isArray(history)) {
+      for (const item of history) {
+        if (item.sender === 'user' && item.text) {
+          chatContents.push({ role: 'user', parts: [{ text: item.text }] });
+        } else if (item.sender === 'ixx' && item.text) {
+          chatContents.push({ role: 'model', parts: [{ text: item.text }] });
+        }
+      }
+    }
+
+    chatContents.push({
+      role: 'user',
+      parts: [
+        {
+          text: `[CURRENT USER SKIN PHASE CONTEXT]: ${phase || 'General Consultation'}\nUser question: "${transcript}"\nInstruction: Answer directly, warmly, and concisely in 1 or 2 short sentences (max 30 words) so voice playback begins immediately!`,
+        },
+      ],
+    });
+
+    let stream: any = null;
+    try {
+      stream = await ai.models.generateContentStream({
+        model: 'gemini-3.1-flash-lite',
+        contents: chatContents,
+        config: {
+          systemInstruction: IXX_VOICE_SYSTEM_INSTRUCTION,
+          temperature: 0.65,
+        },
+      });
+    } catch {
+      stream = await ai.models.generateContentStream({
+        model: 'gemini-3.8-flash',
+        contents: chatContents,
+        config: {
+          systemInstruction: IXX_VOICE_SYSTEM_INSTRUCTION,
+          temperature: 0.65,
+        },
+      });
+    }
+
+    let fullReply = '';
+    for await (const chunk of stream) {
+      const chunkText = chunk.text || '';
+      if (chunkText) {
+        fullReply += chunkText;
+        res.write(`data: ${JSON.stringify({ chunk: chunkText, done: false })}\n\n`);
+      }
+    }
+
+    res.write(`data: ${JSON.stringify({ fullText: fullReply, done: true })}\n\n`);
+    res.end();
+  } catch (err: any) {
+    console.error('Streaming voice consult error:', err);
+    res.write(`data: ${JSON.stringify({ chunk: "I'm right here with you! Tell me what's bothering your skin.", done: true })}\n\n`);
+    res.end();
+  }
+});
+
 // HTTP voice consultation fallback endpoint (works reliably across all iframe / proxy environments)
 app.post('/api/voice-consult', async (req, res) => {
   try {
-    const { transcript, phase, history } = req.body;
+    const { transcript, phase, history, withTts } = req.body;
     const ai = getGenAI();
 
     if (!ai) {
@@ -147,54 +222,68 @@ app.post('/api/voice-consult', async (req, res) => {
       role: 'user',
       parts: [
         {
-          text: `[CURRENT USER SKIN PHASE CONTEXT]: ${phase || 'General Consultation'}\nUser spoken words: "${transcript}"`,
+          text: `[CURRENT USER SKIN PHASE CONTEXT]: ${phase || 'General Consultation'}\nUser spoken words: "${transcript}"\nInstruction: Answer warmly in 1 or 2 crisp sentences (under 30 words) for instant vocal response.`,
         },
       ],
     });
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: chatContents,
-      config: {
-        systemInstruction: IXX_VOICE_SYSTEM_INSTRUCTION,
-        temperature: 0.7,
-      },
-    });
+    let response: any = null;
+    try {
+      response = await ai.models.generateContent({
+        model: 'gemini-3.1-flash-lite',
+        contents: chatContents,
+        config: {
+          systemInstruction: IXX_VOICE_SYSTEM_INSTRUCTION,
+          temperature: 0.65,
+        },
+      });
+    } catch {
+      response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: chatContents,
+        config: {
+          systemInstruction: IXX_VOICE_SYSTEM_INSTRUCTION,
+          temperature: 0.65,
+        },
+      });
+    }
 
     const replyText = response.text || "I'm right here with you. What would you like to achieve with your skin?";
 
-    // Also generate warm female speech audio using Gemini 3.8 Flash Lite TTS
     let base64Audio = '';
-    try {
-      const speechRes = await ai.models.generateContent({
-        model: 'gemini-3.8-flash-lite-tts',
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: replyText }],
-          },
-        ],
-        config: {
-          responseModalities: ['AUDIO'],
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: 'Aoede' },
+    // Only synthesize heavy WAV if explicitly requested, to prevent delaying the answer
+    if (withTts) {
+      try {
+        const speechRes = await ai.models.generateContent({
+          model: 'gemini-3.8-flash-lite-tts',
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: replyText }],
+            },
+          ],
+          config: {
+            responseModalities: ['AUDIO'],
+            speechConfig: {
+              voiceConfig: {
+                prebuiltVoiceConfig: { voiceName: 'Aoede' },
+              },
             },
           },
-        },
-      });
+        });
 
-      const audioPart = speechRes.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      if (audioPart) {
-        base64Audio = audioPart;
+        const audioPart = speechRes.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+        if (audioPart) {
+          base64Audio = audioPart;
+        }
+      } catch (ttsErr: any) {
+        console.warn('Gemini TTS optional audio generation warning:', ttsErr.message);
       }
-    } catch (ttsErr: any) {
-      console.warn('Gemini TTS optional audio generation warning:', ttsErr.message);
     }
 
     res.json({
       reply: replyText,
-      audio: base64Audio, // 24kHz complete WAV file
+      audio: base64Audio,
     });
   } catch (err: any) {
     console.error('Voice consult error:', err);

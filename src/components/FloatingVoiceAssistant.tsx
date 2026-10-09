@@ -397,6 +397,8 @@ export const FloatingVoiceAssistant: React.FC<FloatingVoiceAssistantProps> = ({
                 userHasSpokenRef.current = false;
 
                 if (finalSpeech) {
+                  // Turn off mic immediately so it is not still on
+                  stopMicrophone();
                   setAssistantState('IXX IS THINKING');
                   if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
                     wsRef.current.send(
@@ -409,7 +411,7 @@ export const FloatingVoiceAssistant: React.FC<FloatingVoiceAssistantProps> = ({
                     sendVoiceConsultationHttp(finalSpeech);
                   }
                 }
-              }, 1100);
+              }, 650);
             }
           };
 

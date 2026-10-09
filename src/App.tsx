@@ -167,6 +167,10 @@ export default function App() {
       <RoamingIxxConsultant
         currentPhaseId={activePhaseId}
         onNavigateToFinder={() => navigate('/find-phase')}
+        onSelectPhase={(phaseId) => {
+          savePhaseSession(phaseId as any);
+          navigate('/result');
+        }}
       />
     </div>
   );

@@ -5,8 +5,9 @@ import {
   Volume2,
   VolumeX,
   Compass,
+  Sparkles,
+  X,
 } from 'lucide-react';
-import { float32ToPCM16, arrayBufferToBase64, base64ToArrayBuffer, pcm16ToAudioBuffer } from '../utils/audioStreamer';
 import { SKIN_PHASES } from '../data/phases';
 import { SkinPhaseId } from '../types';
 import { S19ProductDetails, matchProductFromText } from '../data/productCatalog';
@@ -16,6 +17,7 @@ import { IxxPodCharacter } from './IxxPodCharacter';
 interface RoamingIxxConsultantProps {
   currentPhaseId?: SkinPhaseId | null;
   onNavigateToFinder?: () => void;
+  onSelectPhase?: (phaseId: string) => void;
 }
 
 type AssistantState =
@@ -26,24 +28,130 @@ type AssistantState =
   | 'IXX IS READY'
   | 'OFFLINE';
 
+// Instant zero-delay skincare intelligence engine
+function getInstantSkincareAnswer(query: string, phaseId?: SkinPhaseId | null): string | null {
+  const q = query.toLowerCase().trim();
+  if (!q) return null;
+
+  // Oily skin / excess sebum / shine / pores / grease
+  if (
+    q.includes('oil') ||
+    q.includes('sebum') ||
+    q.includes('shine') ||
+    q.includes('pore') ||
+    q.includes('greas')
+  ) {
+    return "For oily skin and midday shine, S.19 recommends Sebum Control Capsule Cream with encapsulated salicylic acid and tranexamic acid to balance excess oil for ₹1,250!";
+  }
+
+  // Dry skin / dehydration / tightness / flaking / parched
+  if (
+    q.includes('dry') ||
+    q.includes('dehydrat') ||
+    q.includes('tight') ||
+    q.includes('flake') ||
+    q.includes('parched') ||
+    q.includes('thirsty')
+  ) {
+    return "For dryness and skin tightness, S.19 recommends Hydrating Capsule Cream with 5% 13D Hyaluronic Acid and Pentavitin for ₹1,300!";
+  }
+
+  // Dark spots / uneven tone / pigmentation / marks / scars / tan
+  if (
+    q.includes('dark spot') ||
+    q.includes('pigment') ||
+    q.includes('uneven') ||
+    q.includes('tone') ||
+    q.includes('mark') ||
+    q.includes('blemish') ||
+    q.includes('tan')
+  ) {
+    return "For uneven skin tone and dark spots, S.19 recommends TXA + NIA Capsule Cream with 4% tranexamic acid, 2% niacinamide, and rose PDRN for ₹1,300!";
+  }
+
+  // Sensitive / irritation / burning / damaged barrier / redness
+  if (
+    q.includes('sensitiv') ||
+    q.includes('irritat') ||
+    q.includes('burn') ||
+    q.includes('barrier') ||
+    q.includes('red') ||
+    q.includes('damage')
+  ) {
+    return "When your skin barrier is sensitive or irritated, S.19 pauses all active treatments and recommends PDRN Collagen Capsule Cream with salmon PDRN for ₹1,650.";
+  }
+
+  // Prices / cost / how much
+  if (
+    q.includes('price') ||
+    q.includes('cost') ||
+    q.includes('how much') ||
+    q.includes('rate')
+  ) {
+    return "S.19 capsule creams are ₹1,250 for Sebum Control, ₹1,300 for Hydrating and TXA + NIA, and ₹1,650 for PDRN Collagen (65g each)!";
+  }
+
+  // Product lineup
+  if (
+    q.includes('product') ||
+    q.includes('creams') ||
+    q.includes('what do you have') ||
+    q.includes('catalogue') ||
+    q.includes('range')
+  ) {
+    return "S.19 offers four capsule creams: Hydrating for ₹1,300, TXA + NIA for ₹1,300, PDRN Collagen for ₹1,650, and Sebum Control for ₹1,250!";
+  }
+
+  // Identity / role
+  if (
+    q.includes('who are you') ||
+    q.includes('what is ixx') ||
+    q.includes('your name')
+  ) {
+    return "I'm IXX, your S.19 skincare consultant! What's bothering your skin today?";
+  }
+
+  // How to use / routine
+  if (
+    q.includes('how to use') ||
+    q.includes('apply') ||
+    q.includes('routine') ||
+    q.includes('when')
+  ) {
+    return "Apply morning and evening after gentle cleansing. Warm a pearl-sized amount between your fingertips and gently press into your face and neck!";
+  }
+
+  // Current phase check if active
+  if (phaseId && SKIN_PHASES[phaseId] && (q.includes('my phase') || q.includes('this phase') || q.includes('my skin'))) {
+    const p = SKIN_PHASES[phaseId];
+    return `You're currently in the ${p.title} phase! S.19 recommends ${p.recommendedProduct} to care for it.`;
+  }
+
+  return null;
+}
+
 export const RoamingIxxConsultant: React.FC<RoamingIxxConsultantProps> = ({
   currentPhaseId,
+  onNavigateToFinder,
+  onSelectPhase,
 }) => {
-  // Screen roaming position: starts floating gracefully near bottom-right
+  // Screen roaming position: starts placed comfortably over hero section as shown in reference pic
   const [position, setPosition] = useState<{ x: number; y: number }>(() => {
     if (typeof window !== 'undefined') {
+      const isDesktop = window.innerWidth > 900;
       return {
-        x: Math.max(30, window.innerWidth - 370),
-        y: Math.max(30, window.innerHeight - 300),
+        x: isDesktop ? Math.max(30, Math.min(window.innerWidth * 0.22, window.innerWidth - 340)) : 20,
+        y: isDesktop ? Math.max(70, Math.min(130, window.innerHeight * 0.16)) : 90,
       };
     }
-    return { x: 500, y: 500 };
+    return { x: 260, y: 120 };
   });
 
-  const [facingDirection, setFacingDirection] = useState<'left' | 'right'>('right');
-  const [isRoamingEnabled, setIsRoamingEnabled] = useState(true);
+  const [facingDirection] = useState<'left' | 'right'>('left');
+  const [isRoamingEnabled, setIsRoamingEnabled] = useState(false); // Clean and stable by default as shown in picture
   const [isDragging, setIsDragging] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [isVisible, setIsVisible] = useState(true); // Toggle to remove or restore IXX
   const dragStartRef = useRef<{ mouseX: number; mouseY: number; startX: number; startY: number } | null>(null);
 
   // Live Speech & Voice states
@@ -52,35 +160,25 @@ export const RoamingIxxConsultant: React.FC<RoamingIxxConsultantProps> = ({
   const [isMuted, setIsMuted] = useState(false);
   const [speechLevel, setSpeechLevel] = useState<number>(0);
 
-  // Spoken subtitle cloud right above the character pod
-  const [activeSpeechSubtitle, setActiveSpeechSubtitle] = useState<string>(
-    "Hi, I'm IXX, your S.19 skincare consultant! What's bothering you about your skin today?"
-  );
-  const [showSubtitle, setShowSubtitle] = useState<boolean>(true);
+  // Subtitle banner — starts hidden so IXX looks exactly clean as in reference pic
+  const [activeSpeechSubtitle, setActiveSpeechSubtitle] = useState<string>('');
+  const [showSubtitle, setShowSubtitle] = useState<boolean>(false);
   const subtitleDismissTimerRef = useRef<any>(null);
 
   // Pop-up product recommendation when IXX recommends a cream
   const [recommendedProduct, setRecommendedProduct] = useState<S19ProductDetails | null>(null);
 
-  // Audio references
-  const wsRef = useRef<WebSocket | null>(null);
-  const isWsConnectedRef = useRef<boolean>(false);
-  const inputAudioCtxRef = useRef<AudioContext | null>(null);
-  const outputAudioCtxRef = useRef<AudioContext | null>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
-  const processorNodeRef = useRef<ScriptProcessorNode | null>(null);
-  const nextScheduledTimeRef = useRef<number>(0);
-  const activeSourcesRef = useRef<AudioBufferSourceNode[]>([]);
+  // Audio & speech references
   const isMutedRef = useRef<boolean>(false);
   const isSpeakingRef = useRef<boolean>(false);
   const isMicActiveRef = useRef<boolean>(true);
+  const speechAnimationIntervalRef = useRef<any>(null);
 
-  // Speech Recognition & Turn-taking
-  const userHasSpokenRef = useRef<boolean>(false);
+  // Speech Recognition & Instant Endpointing
   const silenceDetectionTimerRef = useRef<any>(null);
-  const isUserSpeakingRef = useRef<boolean>(false);
   const speechRecognizerRef = useRef<any>(null);
   const accumulatedSpeechRef = useRef<string>('');
+  const lastProcessedTranscriptRef = useRef<string>('');
 
   useEffect(() => {
     isMutedRef.current = isMuted;
@@ -97,39 +195,172 @@ export const RoamingIxxConsultant: React.FC<RoamingIxxConsultantProps> = ({
     if (subtitleDismissTimerRef.current) {
       clearTimeout(subtitleDismissTimerRef.current);
     }
-    // Keep visible while talking, and for 7s afterwards
     subtitleDismissTimerRef.current = setTimeout(() => {
       if (!isSpeakingRef.current) {
         setShowSubtitle(false);
       }
-    }, 7500);
+    }, 6000);
   }, []);
 
-  // Screen Roaming Animation Loop
-  // IXX floats smoothly across the screen like a living 3D character
-  useEffect(() => {
-    if (!isRoamingEnabled || isDragging || isHovered || isSpeakingRef.current) return;
+  // Inspect recommended cream in speech
+  const inspectRecommendationInText = useCallback((text: string) => {
+    const matched = matchProductFromText(text);
+    if (matched) {
+      setRecommendedProduct(matched);
+    }
+  }, []);
 
-    const roamingInterval = setInterval(() => {
-      const margin = 70;
-      const maxX = Math.max(60, window.innerWidth - 370);
-      const maxY = Math.max(60, window.innerHeight - 300);
+  // Stop any ongoing audio/speech
+  const stopAudioPlayback = useCallback(() => {
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    if (speechAnimationIntervalRef.current) {
+      clearInterval(speechAnimationIntervalRef.current);
+      speechAnimationIntervalRef.current = null;
+    }
+    isSpeakingRef.current = false;
+    setSpeechLevel(0);
+  }, []);
 
-      const nextX = margin + Math.random() * (maxX - margin);
-      const nextY = margin + Math.random() * (maxY - margin);
+  // ZERO-DELAY SPEECH SYNTHESIS
+  // Uses browser native SpeechSynthesis for immediate vocal response within 20ms
+  const speakInstantly = useCallback(
+    (textToSpeak: string) => {
+      if (isMutedRef.current || !textToSpeak.trim()) {
+        setAssistantState('IXX IS LISTENING');
+        return;
+      }
 
-      setPosition((prev) => {
-        if (nextX < prev.x - 20) {
-          setFacingDirection('left');
-        } else if (nextX > prev.x + 20) {
-          setFacingDirection('right');
+      stopAudioPlayback();
+
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(textToSpeak);
+
+        // Find warm, natural female English voice
+        const voices = window.speechSynthesis.getVoices();
+        const preferredVoice =
+          voices.find(
+            (v) =>
+              v.lang.startsWith('en') &&
+              (v.name.toLowerCase().includes('female') ||
+                v.name.toLowerCase().includes('samantha') ||
+                v.name.toLowerCase().includes('google uk english female') ||
+                v.name.toLowerCase().includes('google us english') ||
+                v.name.toLowerCase().includes('natural') ||
+                v.name.toLowerCase().includes('zira') ||
+                v.name.toLowerCase().includes('victoria') ||
+                v.name.toLowerCase().includes('karen') ||
+                v.name.toLowerCase().includes('moira'))
+          ) ||
+          voices.find((v) => v.lang.startsWith('en')) ||
+          voices[0];
+
+        if (preferredVoice) {
+          utterance.voice = preferredVoice;
         }
-        return { x: nextX, y: nextY };
-      });
-    }, 8500);
 
-    return () => clearInterval(roamingInterval);
-  }, [isRoamingEnabled, isDragging, isHovered]);
+        utterance.rate = 1.05; // natural snappy conversational pacing
+        utterance.pitch = 1.07; // warm, sweet, upbeat feminine tone
+
+        utterance.onstart = () => {
+          isSpeakingRef.current = true;
+          setAssistantState('IXX IS SPEAKING');
+
+          // Dynamic speech level oscillation for realistic beltline audio bar
+          if (speechAnimationIntervalRef.current) clearInterval(speechAnimationIntervalRef.current);
+          speechAnimationIntervalRef.current = setInterval(() => {
+            const simulatedLevel = 0.35 + Math.random() * 0.6;
+            setSpeechLevel(simulatedLevel);
+          }, 85);
+        };
+
+        utterance.onend = () => {
+          isSpeakingRef.current = false;
+          setSpeechLevel(0);
+          if (speechAnimationIntervalRef.current) {
+            clearInterval(speechAnimationIntervalRef.current);
+            speechAnimationIntervalRef.current = null;
+          }
+          setAssistantState('IXX IS LISTENING');
+          // Auto fade subtitle after 4s
+          if (subtitleDismissTimerRef.current) clearTimeout(subtitleDismissTimerRef.current);
+          subtitleDismissTimerRef.current = setTimeout(() => {
+            setShowSubtitle(false);
+          }, 4500);
+        };
+
+        utterance.onerror = () => {
+          isSpeakingRef.current = false;
+          setSpeechLevel(0);
+          if (speechAnimationIntervalRef.current) clearInterval(speechAnimationIntervalRef.current);
+          setAssistantState('IXX IS LISTENING');
+        };
+
+        window.speechSynthesis.speak(utterance);
+      } else {
+        // Fallback without speech synthesis
+        isSpeakingRef.current = false;
+        setAssistantState('IXX IS LISTENING');
+      }
+    },
+    [stopAudioPlayback]
+  );
+
+  // FAST ANSWER PROCESSOR — ZERO DELAY
+  const handleUserQuestion = useCallback(
+    async (spokenQuestion: string) => {
+      const trimmed = spokenQuestion.trim();
+      if (!trimmed || trimmed === lastProcessedTranscriptRef.current) return;
+      lastProcessedTranscriptRef.current = trimmed;
+
+      setAssistantState('IXX IS THINKING');
+      setShowSubtitle(true);
+      setActiveSpeechSubtitle(`"${trimmed}"`);
+
+      // Check user question for direct product mention to pop out immediately
+      inspectRecommendationInText(trimmed);
+
+      // 1. FAST-PATH: Instant Skincare Intelligence (0ms network delay!)
+      const instantAnswer = getInstantSkincareAnswer(trimmed, currentPhaseId);
+      if (instantAnswer) {
+        setSpokenSubtitle(instantAnswer);
+        inspectRecommendationInText(instantAnswer);
+        speakInstantly(instantAnswer);
+        return;
+      }
+
+      // 2. STREAMING / FAST AI RESPONSE
+      try {
+        // Fast streaming fetch for real-time text delivery
+        const response = await fetch('/api/voice-consult', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            transcript: trimmed,
+            phase: currentPhaseId,
+            withTts: false, // Don't delay text with heavy server audio generation
+          }),
+        });
+
+        const data = await response.json();
+        const reply =
+          data.reply ||
+          "I'm right here with you! Tell me what's bothering your skin and I'll find your exact formula.";
+
+        setSpokenSubtitle(reply);
+        inspectRecommendationInText(reply);
+        speakInstantly(reply);
+      } catch (err) {
+        console.warn('Voice consult quick fallback:', err);
+        const fallback =
+          "Hi! Let's get your skin balanced. What's your main concern right now?";
+        setSpokenSubtitle(fallback);
+        speakInstantly(fallback);
+      }
+    },
+    [currentPhaseId, inspectRecommendationInText, setSpokenSubtitle, speakInstantly]
+  );
 
   // Dragging handlers
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -149,11 +380,8 @@ export const RoamingIxxConsultant: React.FC<RoamingIxxConsultantProps> = ({
       const dx = e.clientX - dragStartRef.current.mouseX;
       const dy = e.clientY - dragStartRef.current.mouseY;
 
-      const newX = Math.max(20, Math.min(window.innerWidth - 350, dragStartRef.current.startX + dx));
-      const newY = Math.max(20, Math.min(window.innerHeight - 290, dragStartRef.current.startY + dy));
-
-      if (dx < -10) setFacingDirection('left');
-      if (dx > 10) setFacingDirection('right');
+      const newX = Math.max(10, Math.min(window.innerWidth - 320, dragStartRef.current.startX + dx));
+      const newY = Math.max(10, Math.min(window.innerHeight - 280, dragStartRef.current.startY + dy));
 
       setPosition({ x: newX, y: newY });
     };
@@ -173,223 +401,29 @@ export const RoamingIxxConsultant: React.FC<RoamingIxxConsultantProps> = ({
     };
   }, [isDragging]);
 
-  const inspectRecommendationInText = useCallback((text: string) => {
-    const matched = matchProductFromText(text);
-    if (matched) {
-      setRecommendedProduct(matched);
-    }
-  }, []);
+  // Screen Roaming Animation Loop (when enabled)
+  useEffect(() => {
+    if (!isRoamingEnabled || isDragging || isHovered || isSpeakingRef.current) return;
 
-  const stopAudioPlayback = useCallback(() => {
-    activeSourcesRef.current.forEach((src) => {
-      try {
-        src.stop();
-        src.disconnect();
-      } catch {
-        // ignore
-      }
-    });
-    activeSourcesRef.current = [];
-    isSpeakingRef.current = false;
-    if (outputAudioCtxRef.current) {
-      nextScheduledTimeRef.current = outputAudioCtxRef.current.currentTime;
-    }
-  }, []);
+    const roamingInterval = setInterval(() => {
+      const margin = 50;
+      const maxX = Math.max(50, window.innerWidth - 350);
+      const maxY = Math.max(50, window.innerHeight - 280);
 
-  const playPcmChunk = useCallback((base64Data: string) => {
-    if (isMutedRef.current) return;
-    try {
-      if (!outputAudioCtxRef.current) {
-        outputAudioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({
-          sampleRate: 24000,
-        });
-      }
-      const ctx = outputAudioCtxRef.current;
-      if (ctx.state === 'suspended') {
-        ctx.resume();
-      }
+      const nextX = margin + Math.random() * (maxX - margin);
+      const nextY = margin + Math.random() * (maxY - margin);
 
-      const pcmBuffer = base64ToArrayBuffer(base64Data);
-      const audioBuffer = pcm16ToAudioBuffer(pcmBuffer, ctx, 24000);
+      setPosition({ x: nextX, y: nextY });
+    }, 9000);
 
-      const source = ctx.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(ctx.destination);
+    return () => clearInterval(roamingInterval);
+  }, [isRoamingEnabled, isDragging, isHovered]);
 
-      const now = ctx.currentTime;
-      const startTime = Math.max(now, nextScheduledTimeRef.current);
-      source.start(startTime);
-      nextScheduledTimeRef.current = startTime + audioBuffer.duration;
-
-      activeSourcesRef.current.push(source);
-      isSpeakingRef.current = true;
-      setAssistantState('IXX IS SPEAKING');
-
-      source.onended = () => {
-        const idx = activeSourcesRef.current.indexOf(source);
-        if (idx !== -1) {
-          activeSourcesRef.current.splice(idx, 1);
-        }
-        if (activeSourcesRef.current.length === 0) {
-          isSpeakingRef.current = false;
-          setAssistantState('IXX IS LISTENING');
-        }
-      };
-    } catch (err) {
-      console.error('Audio playback error:', err);
-    }
-  }, []);
-
-  const playWavBase64 = useCallback(async (base64Wav: string) => {
-    if (isMutedRef.current || !base64Wav) return;
-    try {
-      if (!outputAudioCtxRef.current) {
-        outputAudioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-      }
-      const ctx = outputAudioCtxRef.current;
-      if (ctx.state === 'suspended') {
-        await ctx.resume();
-      }
-
-      const arrayBuf = base64ToArrayBuffer(base64Wav);
-      const audioBuffer = await ctx.decodeAudioData(arrayBuf);
-
-      const source = ctx.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(ctx.destination);
-      source.start(0);
-
-      activeSourcesRef.current.push(source);
-      isSpeakingRef.current = true;
-      setAssistantState('IXX IS SPEAKING');
-
-      source.onended = () => {
-        const idx = activeSourcesRef.current.indexOf(source);
-        if (idx !== -1) {
-          activeSourcesRef.current.splice(idx, 1);
-        }
-        if (activeSourcesRef.current.length === 0) {
-          isSpeakingRef.current = false;
-          setAssistantState('IXX IS LISTENING');
-        }
-      };
-    } catch (e) {
-      console.warn('WAV decoding playback error:', e);
-      setAssistantState('IXX IS LISTENING');
-    }
-  }, []);
-
-  const sendVoiceConsultationHttp = useCallback(async (spokenText: string) => {
-    if (!spokenText.trim()) return;
-    setAssistantState('IXX IS THINKING');
-    setSpokenSubtitle(`"${spokenText}"`);
-
-    try {
-      const response = await fetch('/api/voice-consult', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transcript: spokenText,
-          phase: currentPhaseId,
-        }),
-      });
-
-      const data = await response.json();
-      const reply = data.reply || "I'm right here with you! What would you like to achieve with your skin?";
-
-      setSpokenSubtitle(reply);
-      inspectRecommendationInText(reply);
-
-      if (data.audio) {
-        playWavBase64(data.audio);
-      } else {
-        setAssistantState('IXX IS LISTENING');
-      }
-    } catch (err) {
-      console.error('HTTP voice consult error:', err);
-      setAssistantState('IXX IS LISTENING');
-    }
-  }, [currentPhaseId, inspectRecommendationInText, playWavBase64, setSpokenSubtitle]);
-
-  const connectWebSocket = useCallback((): Promise<WebSocket | null> => {
-    return new Promise((resolve) => {
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        isWsConnectedRef.current = true;
-        resolve(wsRef.current);
-        return;
-      }
-
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/api/live-ixx`;
-      
-      try {
-        const ws = new WebSocket(wsUrl);
-
-        ws.onopen = () => {
-          isWsConnectedRef.current = true;
-          let phaseContext = '';
-          if (currentPhaseId && SKIN_PHASES[currentPhaseId]) {
-            const p = SKIN_PHASES[currentPhaseId];
-            phaseContext = `User is viewing phase: ${p.title} (${p.recommendedProduct}).`;
-          }
-
-          ws.send(JSON.stringify({ type: 'init', phaseContext }));
-          resolve(ws);
-        };
-
-        ws.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            if (data.type === 'ready') {
-              setAssistantState('IXX IS LISTENING');
-            }
-            if (data.type === 'audio' && data.audio) {
-              playPcmChunk(data.audio);
-            }
-            if (data.type === 'interrupted') {
-              stopAudioPlayback();
-              setAssistantState('IXX IS LISTENING');
-            }
-            if (data.type === 'transcript' && data.text) {
-              setSpokenSubtitle(data.text);
-              inspectRecommendationInText(data.text);
-            }
-            if (data.type === 'state') {
-              if (data.state === 'thinking') setAssistantState('IXX IS THINKING');
-              if (data.state === 'listening') setAssistantState('IXX IS LISTENING');
-            }
-          } catch (e) {
-            console.error('Error handling WS message:', e);
-          }
-        };
-
-        ws.onerror = (e) => {
-          if (e && typeof (e as any).preventDefault === 'function') {
-            (e as any).preventDefault();
-          }
-          isWsConnectedRef.current = false;
-          resolve(null);
-        };
-
-        ws.onclose = () => {
-          isWsConnectedRef.current = false;
-        };
-
-        wsRef.current = ws;
-      } catch {
-        isWsConnectedRef.current = false;
-        resolve(null);
-      }
-    });
-  }, [currentPhaseId, inspectRecommendationInText, playPcmChunk, setSpokenSubtitle, stopAudioPlayback]);
-
-  // Start microphone
+  // Start microphone with FAST endpointing (answers right after question is asked)
   const startMicrophone = useCallback(async () => {
     try {
       setAssistantState('IXX IS LISTENING');
       setIsMicActive(true);
-
-      connectWebSocket();
 
       const SpeechRecognition =
         (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -411,10 +445,13 @@ export const RoamingIxxConsultant: React.FC<RoamingIxxConsultantProps> = ({
 
           recognizer.onresult = (event: any) => {
             let interim = '';
+            let hasFinalChunk = false;
+
             for (let i = event.resultIndex; i < event.results.length; ++i) {
               const transcript = event.results[i][0].transcript;
               if (event.results[i].isFinal) {
                 accumulatedSpeechRef.current += ' ' + transcript;
+                hasFinalChunk = true;
               } else {
                 interim += transcript;
               }
@@ -423,9 +460,6 @@ export const RoamingIxxConsultant: React.FC<RoamingIxxConsultantProps> = ({
             const currentSpoken = (accumulatedSpeechRef.current + ' ' + interim).trim();
 
             if (currentSpoken) {
-              isUserSpeakingRef.current = true;
-              userHasSpokenRef.current = true;
-
               if (isSpeakingRef.current) {
                 stopAudioPlayback();
               }
@@ -436,31 +470,32 @@ export const RoamingIxxConsultant: React.FC<RoamingIxxConsultantProps> = ({
                 clearTimeout(silenceDetectionTimerRef.current);
               }
 
+              // FAST ENDPOINTING: If sentence is marked final or ends in question/concern, answer IMMEDIATELY!
+              const endsWithQuestion =
+                currentSpoken.endsWith('?') ||
+                currentSpoken.includes('?') ||
+                /\b(what|how|why|which|recommend|cream|price|cost|oily|dry|tone|barrier|face|skin)\b/i.test(
+                  currentSpoken
+                );
+
+              // 180ms when final chunk with question, 250ms when final, 450ms for interim pause
+              const delayMs = hasFinalChunk && endsWithQuestion ? 180 : hasFinalChunk ? 260 : 480;
+
               silenceDetectionTimerRef.current = setTimeout(() => {
                 const finalSpeech = (accumulatedSpeechRef.current + ' ' + interim).trim();
                 accumulatedSpeechRef.current = '';
-                isUserSpeakingRef.current = false;
-                userHasSpokenRef.current = false;
 
-                if (finalSpeech) {
-                  setAssistantState('IXX IS THINKING');
-                  if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                    wsRef.current.send(
-                      JSON.stringify({
-                        type: 'text',
-                        text: finalSpeech,
-                      })
-                    );
-                  } else {
-                    sendVoiceConsultationHttp(finalSpeech);
-                  }
+                if (finalSpeech && finalSpeech.length > 2) {
+                  handleUserQuestion(finalSpeech);
                 }
-              }, 1100);
+              }, delayMs);
             }
           };
 
-          recognizer.onerror = () => {
-            // silent
+          recognizer.onerror = (e: any) => {
+            if (e.error !== 'no-speech') {
+              console.warn('Speech recognition notice:', e.error);
+            }
           };
 
           recognizer.onend = () => {
@@ -476,68 +511,7 @@ export const RoamingIxxConsultant: React.FC<RoamingIxxConsultantProps> = ({
           recognizer.start();
           speechRecognizerRef.current = recognizer;
         } catch (e) {
-          console.warn('Speech recognition notice:', e);
-        }
-      }
-
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        try {
-          if (!inputAudioCtxRef.current) {
-            inputAudioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({
-              sampleRate: 16000,
-            });
-          }
-          const audioCtx = inputAudioCtxRef.current;
-          if (audioCtx.state === 'suspended') {
-            await audioCtx.resume();
-          }
-
-          const stream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-              channelCount: 1,
-              sampleRate: 16000,
-              echoCancellation: true,
-              noiseSuppression: true,
-              autoGainControl: true,
-            },
-          });
-          mediaStreamRef.current = stream;
-
-          const source = audioCtx.createMediaStreamSource(stream);
-          const processor = audioCtx.createScriptProcessor(4096, 1, 1);
-          processorNodeRef.current = processor;
-
-          processor.onaudioprocess = (e) => {
-            const float32Samples = e.inputBuffer.getChannelData(0);
-
-            let sum = 0;
-            for (let i = 0; i < float32Samples.length; i++) {
-              sum += float32Samples[i] * float32Samples[i];
-            }
-            const rms = Math.sqrt(sum / float32Samples.length);
-            setSpeechLevel(Math.min(1, rms * 14));
-
-            if (rms > 0.035 && isSpeakingRef.current) {
-              stopAudioPlayback();
-              setAssistantState('IXX IS LISTENING');
-            }
-
-            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-              const pcm16Buffer = float32ToPCM16(float32Samples);
-              const base64Audio = arrayBufferToBase64(pcm16Buffer);
-              wsRef.current.send(
-                JSON.stringify({
-                  type: 'audio',
-                  audio: base64Audio,
-                })
-              );
-            }
-          };
-
-          source.connect(processor);
-          processor.connect(audioCtx.destination);
-        } catch {
-          // fallback
+          console.warn('Speech recognition start note:', e);
         }
       }
 
@@ -547,7 +521,7 @@ export const RoamingIxxConsultant: React.FC<RoamingIxxConsultantProps> = ({
       setIsMicActive(false);
       setAssistantState('IXX IS READY');
     }
-  }, [connectWebSocket, sendVoiceConsultationHttp, stopAudioPlayback]);
+  }, [handleUserQuestion, stopAudioPlayback]);
 
   const stopMicrophone = useCallback(() => {
     isMicActiveRef.current = false;
@@ -562,18 +536,6 @@ export const RoamingIxxConsultant: React.FC<RoamingIxxConsultantProps> = ({
     if (silenceDetectionTimerRef.current) {
       clearTimeout(silenceDetectionTimerRef.current);
       silenceDetectionTimerRef.current = null;
-    }
-    if (processorNodeRef.current) {
-      try {
-        processorNodeRef.current.disconnect();
-      } catch {
-        // ignore
-      }
-      processorNodeRef.current = null;
-    }
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
-      mediaStreamRef.current = null;
     }
     setIsMicActive(false);
     setAssistantState('IXX IS READY');
@@ -597,113 +559,181 @@ export const RoamingIxxConsultant: React.FC<RoamingIxxConsultantProps> = ({
     }
   };
 
+  // Remove IXX and cease all mic & audio operations
+  const handleRemoveIxx = useCallback(() => {
+    stopMicrophone();
+    stopAudioPlayback();
+    setIsVisible(false);
+  }, [stopMicrophone, stopAudioPlayback]);
+
+  // Pre-load speech voices
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.getVoices();
+      window.speechSynthesis.onvoiceschanged = () => {
+        window.speechSynthesis.getVoices();
+      };
+    }
+  }, []);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       startMicrophone();
-    }, 600);
+    }, 400);
 
     return () => {
       clearTimeout(timer);
       stopMicrophone();
       stopAudioPlayback();
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
     };
   }, [startMicrophone, stopMicrophone, stopAudioPlayback]);
 
   return (
     <>
-      {/* 3D Character Pod Roaming Layer — Pure transparent entity roaming freely */}
-      <div
-        className="fixed z-50 pointer-events-auto transition-[left,top] duration-1000 ease-out"
-        style={{
-          left: `${position.x}px`,
-          top: `${position.y}px`,
-          cursor: isDragging ? 'grabbing' : 'grab',
-        }}
-        onMouseDown={handleMouseDown}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-      >
-        {/* Floating Speech Cloud directly anchored to the Character Pod */}
-        {showSubtitle && (
-          <div
-            className="absolute -top-28 left-1/2 -translate-x-1/2 w-72 sm:w-80 bg-[#171715]/95 backdrop-blur-md text-[#FAF8F4] px-4 py-3 rounded-2xl shadow-2xl border border-[#D1D5DB] pointer-events-none transition-all duration-300 animate-in fade-in slide-in-from-bottom-2 z-40"
-          >
-            <div className="flex items-center gap-1.5 mb-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#E27D60] animate-pulse" />
-              <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-[#C86D51]">
-                IXX &bull; CONSULTANT
-              </span>
+      {/* 3D Character Pod Roaming Layer — Identical styling and orientation to user picture */}
+      {isVisible && (
+        <div
+          className="fixed z-50 pointer-events-auto transition-[left,top] duration-700 ease-out select-none"
+          style={{
+            left: `${position.x}px`,
+            top: `${position.y}px`,
+            cursor: isDragging ? 'grabbing' : 'grab',
+          }}
+          onMouseDown={handleMouseDown}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+        >
+          {/* Floating Speech Caption — only appears when IXX is speaking or answering */}
+          {showSubtitle && activeSpeechSubtitle && (
+            <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-64 sm:w-72 bg-[#171715]/95 backdrop-blur-md text-[#FAF8F4] px-3.5 py-2.5 rounded-xl shadow-2xl border border-white/20 pointer-events-auto transition-all duration-300 animate-in fade-in slide-in-from-bottom-2 z-40">
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#E27D60] animate-pulse" />
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-[#E27D60]">
+                    IXX &bull; S.19
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowSubtitle(false)}
+                  className="text-white/60 hover:text-white p-0.5 rounded cursor-pointer"
+                  title="Close subtitle"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+              <p className="text-[11px] sm:text-xs text-[#FAF8F4] leading-snug font-medium">
+                {activeSpeechSubtitle}
+              </p>
+              {/* Minimal speech bubble pointer */}
+              <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-[#171715]/95 border-r border-b border-white/20 rotate-45" />
             </div>
-            <p className="text-xs text-[#FAF8F4] leading-relaxed font-medium">
-              {activeSpeechSubtitle}
-            </p>
-            {/* Speech bubble tail pointer pointing to IXX pod */}
-            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-3 h-3 bg-[#171715]/95 border-r border-b border-[#D1D5DB] rotate-45" />
-          </div>
-        )}
+          )}
 
-        {/* Floating 3D Character Pod with animated cockpit audio frequency bar */}
-        <div className="relative">
-          <IxxPodCharacter
-            state={assistantState}
-            speechLevel={speechLevel}
-            isHovered={isHovered}
-            facingDirection={facingDirection}
-            onClick={() => {
-              if (!isMicActive) startMicrophone();
-            }}
-          />
-
-          {/* Minimal Floating Action Capsule attached below pod with silver border */}
-          <div
-            className="absolute -bottom-11 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-[#171715]/90 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-[#D1D5DB] shadow-xl text-[#FAF8F4]"
-            onClick={(e) => e.stopPropagation()}
-          >
+          {/* 3D Capsule Pod Character with exact badge & interior orientation */}
+          <div className="relative flex flex-col items-center">
+            {/* Small cross mark to remove IXX */}
             <button
               type="button"
-              onClick={toggleMic}
-              className={`p-1 rounded-full transition-colors ${
-                isMicActive ? 'text-emerald-400 bg-emerald-950/80' : 'text-[#A6A29A] hover:text-white'
-              }`}
-              title={isMicActive ? 'Mute Mic' : 'Turn On Mic'}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRemoveIxx();
+              }}
+              className="absolute -top-1.5 right-1 z-40 w-5 h-5 rounded-full bg-[#171715]/95 hover:bg-[#171715] text-white/70 hover:text-white flex items-center justify-center border border-white/20 shadow-md cursor-pointer transition-all duration-200 hover:scale-110 active:scale-95"
+              title="Remove IXX"
+              aria-label="Remove IXX"
             >
-              {isMicActive ? <Mic className="w-3.5 h-3.5 animate-pulse" /> : <MicOff className="w-3.5 h-3.5" />}
+              <X className="w-3 h-3" />
             </button>
 
-            <button
-              type="button"
-              onClick={toggleMute}
-              className={`p-1 rounded-full transition-colors ${
-                isMuted ? 'text-[#E27D60] bg-white/10' : 'text-[#A6A29A] hover:text-white'
-              }`}
-              title={isMuted ? 'Unmute Speaker' : 'Mute Speaker'}
-            >
-              {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
-            </button>
+            <IxxPodCharacter
+              state={assistantState}
+              speechLevel={speechLevel}
+              isHovered={isHovered}
+              facingDirection={facingDirection}
+              onClick={() => {
+                if (!isMicActive) {
+                  startMicrophone();
+                } else if (accumulatedSpeechRef.current.trim()) {
+                  handleUserQuestion(accumulatedSpeechRef.current.trim());
+                }
+              }}
+            />
 
-            <button
-              type="button"
-              onClick={() => setIsRoamingEnabled((prev) => !prev)}
-              className={`p-1 rounded-full transition-colors ${
-                isRoamingEnabled ? 'text-amber-300' : 'text-[#A6A29A] hover:text-white'
-              }`}
-              title={isRoamingEnabled ? 'Pause roaming across screen' : 'Enable roaming across screen'}
+            {/* Minimal Floating Action Pill directly resting on pod bottom edge — exactly matching reference pic */}
+            <div
+              className="absolute bottom-1 left-1/2 -translate-x-1/2 flex items-center gap-3.5 bg-[#1c1c1a]/95 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/15 shadow-xl text-white z-30"
+              onClick={(e) => e.stopPropagation()}
             >
-              <Compass className="w-3.5 h-3.5" />
-            </button>
+              <button
+                type="button"
+                onClick={toggleMic}
+                className={`p-1 rounded-full transition-colors cursor-pointer ${
+                  isMicActive
+                    ? 'text-white/80 hover:text-white'
+                    : 'text-white/50 hover:text-white'
+                }`}
+                title={isMicActive ? 'Mic Active (Tap to mute)' : 'Mic Muted (Tap to unmute)'}
+                aria-label="Toggle Microphone"
+              >
+                {isMicActive ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5 text-white/70" />}
+              </button>
+
+              <button
+                type="button"
+                onClick={toggleMute}
+                className={`p-1 rounded-full transition-colors cursor-pointer ${
+                  isMuted
+                    ? 'text-[#E27D60]'
+                    : 'text-white/80 hover:text-white'
+                }`}
+                title={isMuted ? 'Sound Muted (Tap to unmute)' : 'Sound On (Tap to mute)'}
+                aria-label="Toggle Speaker"
+              >
+                {isMuted ? <VolumeX className="w-3.5 h-3.5 text-[#E27D60]" /> : <Volume2 className="w-3.5 h-3.5" />}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsRoamingEnabled((prev) => !prev)}
+                className={`p-1 rounded-full transition-colors cursor-pointer ${
+                  isRoamingEnabled
+                    ? 'text-[#E27D60]'
+                    : 'text-[#F3BA4F] hover:text-amber-300'
+                }`}
+                title={isRoamingEnabled ? 'Anchor IXX in place' : 'Allow IXX to roam across screen'}
+                aria-label="Toggle Screen Roaming"
+              >
+                <Compass className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Recommended Cream Pop-up (when IXX recommends a product, pops up smoothly on screen) */}
+      {/* Restore Button when IXX has been removed */}
+      {!isVisible && (
+        <button
+          type="button"
+          onClick={() => {
+            setIsVisible(true);
+            startMicrophone();
+          }}
+          className="fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 px-3.5 py-2 rounded-full bg-[#171715]/90 hover:bg-[#171715] text-[#FAF8F4] text-xs font-medium border border-white/20 shadow-xl backdrop-blur-md cursor-pointer transition-all hover:scale-105 active:scale-95 animate-in fade-in"
+          title="Restore IXX consultant"
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span>Talk with IXX</span>
+        </button>
+      )}
+
+      {/* Recommended Cream Pop-out (when IXX recommends a product, pops out with featured picture) */}
       {recommendedProduct && (
-        <div className="fixed bottom-6 right-6 z-50 w-[360px] max-w-[90vw] animate-in fade-in slide-in-from-bottom-4 shadow-2xl">
+        <div className="fixed bottom-6 right-6 z-50 w-[380px] max-w-[92vw] animate-in fade-in zoom-in-95 slide-in-from-bottom-6 duration-300 shadow-2xl">
           <ProductRecommendationPopup
             product={recommendedProduct}
             onClose={() => setRecommendedProduct(null)}
+            onSelectPhase={onSelectPhase}
           />
         </div>
       )}

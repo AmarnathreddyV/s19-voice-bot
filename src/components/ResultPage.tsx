@@ -2,6 +2,7 @@ import React from 'react';
 import { ArrowUpRight, Sparkles, RotateCcw, ShieldAlert, CheckCircle2 } from 'lucide-react';
 import { SKIN_PHASES } from '../data/phases';
 import { SkinPhaseId } from '../types';
+import { matchProductFromText } from '../data/productCatalog';
 
 interface ResultPageProps {
   phaseId: SkinPhaseId;
@@ -19,6 +20,7 @@ export const ResultPage: React.FC<ResultPageProps> = ({
   onViewAllPhases,
 }) => {
   const phase = SKIN_PHASES[phaseId] || SKIN_PHASES.DEHYDRATION;
+  const matchedProduct = matchProductFromText(phase.recommendedProduct);
 
   return (
     <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 py-12 sm:py-16 lg:py-20">
@@ -95,18 +97,42 @@ export const ResultPage: React.FC<ResultPageProps> = ({
             </span>
             
             <div className="p-6 bg-[#FAF8F4] border border-[#C9C3B8] space-y-4">
-              <div className="flex items-start justify-between gap-4">
-                <div>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    {matchedProduct && (
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 bg-[#171715] text-white rounded">
+                        {matchedProduct.code}
+                      </span>
+                    )}
+                    <span className="text-xs text-[#6D6A63] uppercase tracking-wider">
+                      {phase.isRecovery ? 'Care-First Barrier Protocol' : 'S.19 Capsule Care System'}
+                    </span>
+                  </div>
                   <h2 className="text-2xl sm:text-3xl font-medium text-[#171715] tracking-[-0.03em] uppercase">
                     {phase.recommendedProduct}
                   </h2>
-                  <span className="text-xs text-[#6D6A63] uppercase tracking-wider block mt-1">
-                    {phase.isRecovery ? 'Care-First Barrier Protocol' : 'S.19 Capsule Care System'}
-                  </span>
+                  {matchedProduct && (
+                    <div className="text-sm font-semibold text-[#171715]">
+                      {matchedProduct.priceFormatted} &bull; 65g
+                    </div>
+                  )}
                 </div>
-                <div className="w-8 h-8 rounded-full bg-[#171715] text-[#F4F0E8] flex items-center justify-center flex-shrink-0">
-                  <CheckCircle2 className="w-4 h-4 text-[#F4F0E8]" />
-                </div>
+
+                {matchedProduct ? (
+                  <div className="w-24 h-24 sm:w-28 sm:h-28 shrink-0 bg-[#EFECE6] border border-[#C9C3B8] rounded-lg overflow-hidden shadow-sm">
+                    <img
+                      src={matchedProduct.image}
+                      alt={matchedProduct.name}
+                      className="w-full h-full object-cover object-center"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-[#171715] text-[#F4F0E8] flex items-center justify-center flex-shrink-0">
+                    <CheckCircle2 className="w-4 h-4 text-[#F4F0E8]" />
+                  </div>
+                )}
               </div>
 
               {/* WHY THIS MATCHES */}

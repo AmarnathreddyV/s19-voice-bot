@@ -56,7 +56,7 @@ export const IxxPodCharacter: React.FC<IxxPodCharacterProps> = ({
         transition: 'transform 0.1s ease-out',
       }}
     >
-      {/* Subtle Atmospheric Energy Aura */}
+      {/* Subtle Atmospheric Energy Aura — no white shadows */}
       <div
         className={`absolute inset-4 rounded-full blur-2xl transition-all duration-500 pointer-events-none ${
           isSpeaking
@@ -71,66 +71,59 @@ export const IxxPodCharacter: React.FC<IxxPodCharacterProps> = ({
         }`}
       />
 
-      {/* Realistic Floating Ground Contact Shadow */}
+      {/* Floating 3D Contact Shadow on the virtual ground */}
       <div
-        className={`absolute -bottom-4 left-1/2 -translate-x-1/2 h-4 rounded-full blur-sm transition-all duration-300 pointer-events-none ${
+        className={`absolute -bottom-3 left-1/2 -translate-x-1/2 h-4 rounded-full blur-sm transition-all duration-300 pointer-events-none ${
           isSpeaking
-            ? 'w-48 bg-[#171715]/22 scale-105'
+            ? 'w-48 bg-[#171715]/25 scale-105'
             : isListening
-            ? 'w-44 bg-[#171715]/18 scale-100'
-            : 'w-40 bg-[#171715]/14 scale-95'
+            ? 'w-44 bg-[#171715]/20 scale-100'
+            : 'w-40 bg-[#171715]/15 scale-95'
         }`}
         style={{
           transform: `translateX(-50%) scale(${1 - Math.abs(floatOffset) / 35})`,
-          opacity: 0.32 - floatOffset * 0.01,
+          opacity: 0.35 - floatOffset * 0.01,
         }}
       />
 
-      {/* Floating Status & Name Pill Badge */}
-      <div className="mb-1 pointer-events-none z-30">
-        <div
-          className={`px-3 py-0.5 rounded-full text-[10px] font-bold tracking-widest uppercase flex items-center gap-1.5 shadow-lg border transition-all duration-300 ${
-            isSpeaking
-              ? 'bg-[#171715] text-[#FAF8F4] border-[#E27D60]'
-              : isListening
-              ? 'bg-[#171715] text-emerald-300 border-emerald-500'
-              : isThinking
-              ? 'bg-[#171715] text-amber-300 border-amber-500'
-              : 'bg-[#171715]/90 text-[#FAF8F4] border-[#D1D5DB] shadow-md'
-          }`}
-        >
+      {/* Aerodynamic Hover Thruster Vapor Mist under exhaust nozzles — as in reference pic */}
+      <div
+        className="absolute bottom-2 left-1/2 -translate-x-1/2 w-36 h-9 pointer-events-none rounded-full blur-md opacity-75 z-10"
+        style={{
+          background: 'radial-gradient(ellipse at center, rgba(255,255,255,0.75) 0%, rgba(240,240,240,0.35) 45%, transparent 75%)',
+        }}
+      />
+
+      {/* Floating Status & Name Pill Badge — exactly as in reference pic */}
+      <div className="mb-0.5 pointer-events-none z-30">
+        <div className="px-3 py-0.5 rounded-full text-[11px] font-bold tracking-wider uppercase flex items-center gap-1.5 shadow-md border border-white/20 bg-[#171715]/95 text-[#FAF8F4] backdrop-blur-sm transition-all duration-300">
           <span
-            className={`w-1.5 h-1.5 rounded-full ${
+            className={`w-1.5 h-1.5 rounded-full transition-colors ${
               isSpeaking
-                ? 'bg-[#E27D60] animate-ping'
+                ? 'bg-[#E27D60] animate-pulse'
                 : isListening
                 ? 'bg-emerald-400 animate-pulse'
                 : isThinking
-                ? 'bg-amber-400'
-                : 'bg-[#A6A29A]'
+                ? 'bg-amber-400 animate-bounce'
+                : 'bg-white/70'
             }`}
           />
-          <span>IXX</span>
+          <span className="font-semibold text-white/95">IXX</span>
         </div>
       </div>
 
-      {/* Main 3D Vehicle Pod Body (Clear, Crisp Bottom Hull & Forward-Curving Tail) */}
-      <div
-        className="relative w-64 sm:w-76 aspect-[793/853] transition-transform duration-500 ease-out flex items-center justify-center"
-        style={{
-          transform: `scaleX(${facingDirection === 'left' ? 1 : -1})`,
-        }}
-      >
+      {/* Main 3D Vehicle Pod Body (Accurate silhouette and interior orientation matching reference pic) */}
+      <div className="relative w-64 sm:w-76 aspect-[797/856] flex items-center justify-center">
         <img
           src={ixxPodPng}
           alt="IXX 3D Flying Capsule Pod"
-          className="w-full h-full object-contain pointer-events-none select-none drop-shadow-[0_12px_22px_rgba(23,23,21,0.2)]"
+          className="w-full h-full object-contain pointer-events-none select-none drop-shadow-[0_14px_24px_rgba(23,23,21,0.22)]"
           draggable={false}
         />
 
-        {/* Very Small Sound Bar mounted directly ON the vehicle's front beltline with silver bezel */}
+        {/* Small Audio Frequency Sound Bar directly ON the vehicle beltline */}
         <div
-          className="absolute top-[67.8%] left-[26%] w-[16%] h-[2.8%] min-h-[8px] max-h-[11px] z-20 flex items-center justify-center overflow-hidden rounded-full pointer-events-none bg-[#111111]/85 backdrop-blur-[0.5px] border border-[#E5E7EB] shadow-[0_0_8px_rgba(229,231,235,0.6)]"
+          className="absolute top-[67.8%] left-[26%] w-[16%] h-[2.8%] min-h-[8px] max-h-[11px] z-20 flex items-center justify-center overflow-hidden rounded-full pointer-events-none bg-[#111111]/80 backdrop-blur-[0.5px] border border-white/30 shadow-[0_0_6px_rgba(226,125,96,0.35)]"
           style={{
             transform: 'rotate(-1.5deg)',
           }}
